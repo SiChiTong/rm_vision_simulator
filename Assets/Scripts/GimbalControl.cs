@@ -7,6 +7,7 @@ public class GimbalControl : MonoBehaviour
 {
     public float max_pitch_angle = 35;
     public float min_pitch_angle = -25;
+    public bool enable_mouse_control = true;
 
     private Transform pitch_transform;
     private Transform yaw_transform;
@@ -30,20 +31,30 @@ public class GimbalControl : MonoBehaviour
     // Update is called once per frame
     void FixedUpdate()
     {
-        // Mouse controls
-        var mouse_x = Input.GetAxis("Mouse X");
-        var mouse_y = Input.GetAxis("Mouse Y");
-        yaw_transform.Rotate(0, mouse_x, 0);
-        pitch_transform.Rotate(-mouse_y, 0, 0);
-
-        var pitch_angle = pitch_transform.localEulerAngles.x;
-        if (pitch_angle > 180)
+        // Press ALT to change mouse control
+        if (Input.GetKeyDown(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.RightAlt))
         {
-            pitch_angle -= 360;
+            enable_mouse_control = !enable_mouse_control;
+            Cursor.lockState = enable_mouse_control ? CursorLockMode.Locked : CursorLockMode.None;
         }
-        pitch_angle = Mathf.Clamp(pitch_angle, min_pitch_angle, max_pitch_angle);
-        pitch_transform.localEulerAngles = new Vector3(pitch_angle, 180, 0);
 
+        if (enable_mouse_control)
+        {
+
+            // Mouse controls
+            var mouse_x = Input.GetAxis("Mouse X");
+            var mouse_y = Input.GetAxis("Mouse Y");
+            yaw_transform.Rotate(0, mouse_x, 0);
+            pitch_transform.Rotate(-mouse_y, 0, 0);
+
+            var pitch_angle = pitch_transform.localEulerAngles.x;
+            if (pitch_angle > 180)
+            {
+                pitch_angle -= 360;
+            }
+            pitch_angle = Mathf.Clamp(pitch_angle, min_pitch_angle, max_pitch_angle);
+            pitch_transform.localEulerAngles = new Vector3(pitch_angle, 180, 0);
+        }
 
         if (ros2Unity.Ok())
         {

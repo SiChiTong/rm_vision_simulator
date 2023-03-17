@@ -6,14 +6,30 @@ public class UnityCamPub : MonoBehaviour
 {
     private ROS2UnityComponent ros2Unity;
     private ROS2Node ros2Node;
-    private IPublisher<sensor_msgs.msg.Image> camPub;
+    private IPublisher<sensor_msgs.msg.Image> camImagePub;
+    private IPublisher<sensor_msgs.msg.CameraInfo> camInfoPub;
     private Camera cam;
+    private sensor_msgs.msg.CameraInfo camInfoMsg;
 
     // Start is called before the first frame update
     void Start()
     {
         ros2Unity = GetComponent<ROS2UnityComponent>();
-        cam = GameObject.Find("camera").GetComponent<Camera>();
+        cam = GameObject.Find(name + "/base_link/yaw_link/pitch_link/camera").GetComponent<Camera>();
+
+        // Calculate camera info
+        var fx = cam.fieldOfView * Mathf.Deg2Rad * cam.pixelWidth / (2 * Mathf.Tan(cam.fieldOfView * Mathf.Deg2Rad / 2));
+        var fy = fx;
+        var cx = cam.pixelWidth / 2;
+        var cy = cam.pixelHeight / 2;
+
+        camInfoMsg = new sensor_msgs.msg.CameraInfo();
+        camInfoMsg.K[0] = fx;
+        camInfoMsg.K[2] = cx;
+        camInfoMsg.K[4] = fy;
+        camInfoMsg.K[5] = cy;
+        camInfoMsg.K[8] = 1;
+        camInfoMsg.D = new double[5];
     }
 
     void OnEnable()
@@ -29,8 +45,8 @@ public class UnityCamPub : MonoBehaviour
             if (ros2Node == null)
             {
                 ros2Node = ros2Unity.CreateNode("ROS2UnityCamNode");
-                camPub = ros2Node.CreatePublisher<sensor_msgs.msg.Image>("/image_raw",
-                    new QualityOfServiceProfile(QosPresetProfile.SENSOR_DATA));
+                camImagePub = ros2Node.CreateSensorPublisher<sensor_msgs.msg.Image>("/image_raw");
+                camInfoPub = ros2Node.CreateSensorPublisher<sensor_msgs.msg.CameraInfo>("/camera_info");
             }
         }
     }
@@ -51,7 +67,7 @@ public class UnityCamPub : MonoBehaviour
 
         // Convert to ROS2 message
         var msg = new sensor_msgs.msg.Image();
-        msg.Header.Frame_id = "camera";
+        msg.Header.Frame_id = "camera_optical_frame";
         msg.Header.Stamp = timestamp;
         msg.Height = (uint)tmpRT.height;
         msg.Width = (uint)tmpRT.width;
@@ -59,8 +75,12 @@ public class UnityCamPub : MonoBehaviour
         msg.Step = (uint)(tmpRT.width * 3);
         ApplyData(ref msg, req.GetData<byte>().ToArray());
 
+        // Update camera info timestamp
+        camInfoMsg.Header = msg.Header;
+
         // Publish the message
-        camPub.Publish(msg);
+        camImagePub.Publish(msg);
+        camInfoPub.Publish(camInfoMsg);
 
         // Release the temporary render texture
         RenderTexture.ReleaseTemporary(tmpRT);
